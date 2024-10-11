@@ -89,6 +89,7 @@ std::vector<size_t> nms_largest_box_optimized(
                 if (areas[idx] > areas[current]) {
                     remaining.push_back(idx);
                 }
+            }
         }
 
         // Update the list of indices
