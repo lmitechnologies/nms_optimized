@@ -85,7 +85,7 @@ std::vector<size_t> nms_largest_box_optimized(
             float overlap = compute_iou(x1[current], y1[current], x2[current], y2[current],
                                                  x1[idx], y1[idx], x2[idx], y2[idx]);
             // make sure keep the largest box
-            if (overlap <= overlap_thresh) {
+            if (overlap < overlap_thresh) {
                 remaining.push_back(idx);
             }
         }
