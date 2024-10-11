@@ -11,7 +11,7 @@ namespace py = pybind11;
 
 // Function to compute IoU between two boxes
 inline float compute_iou(float x1_a, float y1_a, float x2_a, float y2_a,
-                        float x1_b, float y1_b, float x2_b, float y2_b) {
+                                   float x1_b, float y1_b, float x2_b, float y2_b) {
     float xx1 = std::max(x1_a, x1_b);
     float yy1 = std::max(y1_a, y1_b);
     float xx2 = std::min(x2_a, x2_b);
@@ -23,9 +23,14 @@ inline float compute_iou(float x1_a, float y1_a, float x2_a, float y2_a,
 
     float area_a = (x2_a - x1_a + 1.0f) * (y2_a - y1_a + 1.0f);
     float area_b = (x2_b - x1_b + 1.0f) * (y2_b - y1_b + 1.0f);
-    float union_area = area_a + area_b - inter;
+    float min_area = std::min(area_a, area_b);
 
-    return inter / union_area;
+    // Avoid division by zero
+    if (min_area <= 0.0f) {
+        return 0.0f;
+    }
+
+    return inter / min_area;
 }
 
 std::vector<size_t> nms_largest_box_optimized(
@@ -46,6 +51,9 @@ std::vector<size_t> nms_largest_box_optimized(
     std::vector<float> areas(num_boxes);
 
     for (size_t i = 0; i < num_boxes; ++i) {
+        if (boxes_input[i].size() < 4) {
+            throw std::invalid_argument("Each box must have at least four coordinates: [x1, y1, x2, y2].");
+        }
         x1[i] = boxes_input[i][0];
         y1[i] = boxes_input[i][1];
         x2[i] = boxes_input[i][2];
@@ -73,22 +81,14 @@ std::vector<size_t> nms_largest_box_optimized(
 
         for (size_t i = 1; i < indices.size(); ++i) {
             int idx = indices[i];
-            // Compute intersection
-            float xx1 = std::max(x1[current], x1[idx]);
-            float yy1 = std::max(y1[current], y1[idx]);
-            float xx2 = std::min(x2[current], x2[idx]);
-            float yy2 = std::min(y2[current], y2[idx]);
-
-            // Compute width and height of the overlap
-            float w = std::max(0.0f, xx2 - xx1 + 1);
-            float h = std::max(0.0f, yy2 - yy1 + 1);
-
-            // Compute IoU
-            float overlap = (w * h) / areas[idx];
-
+            // Compute IoU based on the smaller box
+            float overlap = compute_iou(x1[current], y1[current], x2[current], y2[current],
+                                                 x1[idx], y1[idx], x2[idx], y2[idx]);
+            // make sure keep the largest box
             if (overlap <= overlap_thresh) {
-                remaining.push_back(idx);
-            }
+                if (areas[idx] > areas[current]) {
+                    remaining.push_back(idx);
+                }
         }
 
         // Update the list of indices
@@ -97,6 +97,7 @@ std::vector<size_t> nms_largest_box_optimized(
 
     return keep;
 }
+
 
 
 PYBIND11_MODULE(nms_module_optimized, m) {
